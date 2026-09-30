@@ -40,12 +40,12 @@ GIT_TOKEN = getenv("GIT_TOKEN")
 
 SUPPORT_CHANNEL = getenv(
     "SUPPORT_CHANNEL",
-    "https://t.me/ShrutiBots"
+    "https://t.me/Tamilchat7s"
 )
 
 SUPPORT_CHAT = getenv(
     "SUPPORT_CHAT",
-    "https://t.me/ShrutiSupportChat"
+    "https://t.me/tamilchat_TP"
 )
 
 AUTO_LEAVING_ASSISTANT = getenv(
@@ -85,16 +85,16 @@ confirmer = {}
 
 START_IMG_URL = getenv(
     "START_IMG_URL",
-    "https://graph.org/file/7557c0e0e0c1708f62d6a-6892ea881cc1555c83.jpg"
+    "https://files.catbox.moe/xjubhd.jpg"
 )
 
 PING_IMG_URL = getenv(
     "PING_IMG_URL",
-    "https://graph.org/file/f35df5dd605d76ff790b7-953db0f3e71a2e5a1a.jpg"
+    "https://files.catbox.moe/xjubhd.jpg"
 )
 
 PLAYLIST_IMG_URL = "https://te.legra.ph/file/4ec5ae4381dffb039b4ef.jpg"
-STATS_IMG_URL = "https://te.legra.ph/file/e906c2def5afe8a9b9120.jpg"
+STATS_IMG_URL = "https://files.catbox.moe/xjubhd.jpg"
 TELEGRAM_AUDIO_URL = "https://te.legra.ph/file/6298d377ad3eb46711644.jpg"
 TELEGRAM_VIDEO_URL = "https://te.legra.ph/file/6298d377ad3eb46711644.jpg"
 STREAM_IMG_URL = "https://te.legra.ph/file/bd995b032b6bd263e2cc9.jpg"
