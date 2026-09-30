@@ -12,6 +12,7 @@ from BOMMYMUSIC.utils import BOMMYBin, get_channeplayCB, seconds_to_min
 from BOMMYMUSIC.utils.database import get_cmode, is_active_chat, is_music_playing
 from BOMMYMUSIC.utils.decorators.language import language, languageCB
 from BOMMYMUSIC.utils.inline import queue_back_markup, queue_markup
+from BOMMYMUSIC.utils.rich_stream import build_queue_list_blocks, edit_rich
 from config import BANNED_USERS
 
 basic = {}
@@ -153,9 +154,18 @@ async def queued_tracks(client, CallbackQuery: CallbackQuery, _):
         return await CallbackQuery.answer(_["queue_2"], show_alert=True)
     if len(got) == 1:
         return await CallbackQuery.answer(_["queue_5"], show_alert=True)
-    await CallbackQuery.answer()
+    await CallbackQuery.answer("◈ ᴏᴘᴇɴɪɴɢ ǫᴜᴇᴜᴇ…")
     basic[videoid] = False
     buttons = queue_back_markup(_, what)
+
+    # Premium Rich Message queue dashboard. If the Telegram client/runtime
+    # cannot edit the existing rich message, fall back to the legacy queue UI.
+    try:
+        blocks = build_queue_list_blocks(_, got, chat_id, what)
+        return await edit_rich(CallbackQuery.message, blocks)
+    except Exception:
+        pass
+
     med = InputMediaPhoto(
         media="https://telegra.ph//file/6f7d35131f69951c74ee5.jpg",
         caption=_["queue_1"],
