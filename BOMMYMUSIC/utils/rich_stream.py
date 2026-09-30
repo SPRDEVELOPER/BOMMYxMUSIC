@@ -1,6 +1,6 @@
 import math
+import random
 import re
-import time
 
 from pyrogram import enums, errors, types
 
@@ -77,76 +77,61 @@ def _html_caption_to_blocks(caption_html):
     ]
 
 
+def _love_frame(played):
+    """Small frame animation driven by the progress timer."""
+    try:
+        tick = int(time_to_seconds(played))
+    except (TypeError, ValueError):
+        tick = 0
+    hearts = ("♡", "♥", "💗", "💞", "💖", "💗")
+    waves = ("▁▂▃▄▅", "▂▃▄▅▆", "▃▄▅▆▇", "▄▅▆▇▆", "▅▆▇▆▅", "▆▇▆▅▄")
+    return hearts[tick % len(hearts)], waves[tick % len(waves)]
+
+
 def _progress_line(played, dur):
     played_sec = time_to_seconds(played)
     duration_sec = time_to_seconds(dur)
     percentage = (played_sec / duration_sec) * 100 if duration_sec else 0
-    umm = math.floor(percentage)
-    if 0 < umm <= 10:
-        bar = "◉—————————"
-    elif 10 < umm < 20:
-        bar = "—◉————————"
-    elif 20 <= umm < 30:
-        bar = "——◉———————"
-    elif 30 <= umm < 40:
-        bar = "———◉——————"
-    elif 40 <= umm < 50:
-        bar = "————◉—————"
-    elif 50 <= umm < 60:
-        bar = "—————◉————"
-    elif 60 <= umm < 70:
-        bar = "——————◉———"
-    elif 70 <= umm < 80:
-        bar = "———————◉——"
-    elif 80 <= umm < 95:
-        bar = "————————◉—"
-    else:
-        bar = "—————————◉"
-    return f"{played}  {bar}  {dur}"
+    percentage = max(0, min(100, percentage))
+
+    # Clean, compact timeline with a moving heart marker.  The marker changes
+    # on every progress refresh, creating a subtle animation in Telegram.
+    slots = 14
+    filled = min(slots - 1, int((percentage / 100) * slots))
+    heart, wave = _love_frame(played)
+    bar = "━" * filled + heart + "━" * max(0, slots - filled - 1)
+    return f"{played}  {bar}  {dur}  {wave}"
 
 
-_BUTTON_STYLES = [
-    enums.ButtonStyle.PRIMARY,
-    enums.ButtonStyle.SUCCESS,
-    enums.ButtonStyle.DEFAULT,
-    enums.ButtonStyle.DANGER,
-]
-
-
-def _animation_frame(playing=True):
-    # The now-playing card is rebuilt every few seconds, so cycling these
-    # frames creates a lightweight Telegram-native animation without
-    # background tasks or extra messages.
-    if not playing:
-        return "⏸︎  ᴘᴀᴜsᴇᴅ"
-    frames = (
-        "▰▱▱▱▱▱▱▱",
-        "▰▰▱▱▱▱▱▱",
-        "▰▰▰▱▱▱▱▱",
-        "▰▰▰▰▱▱▱▱",
-        "▰▰▰▰▰▱▱▱",
-        "▰▰▰▰▰▰▱▱",
-        "▰▰▰▰▰▰▰▱",
-        "▰▰▰▰▰▰▰▰",
-        "▱▰▰▰▰▰▰▱",
-        "▱▱▰▰▰▰▰▱",
-        "▱▱▱▰▰▰▰▱",
-        "▱▱▱▱▰▰▰▱",
+def _love_header(playing=True):
+    heart = "💗" if playing else "♡"
+    status = "NOW PLAYING" if playing else "PAUSED"
+    return (
+        f"╭─ {heart} <b>BOMMY MUSIC</b> • <b>LOVE MODE</b> ─╮\n"
+        f"│  {heart} <b>{status}</b>  •  𝄞  feel the music\n"
+        f"╰──────────────────────────────╯"
     )
-    return frames[(int(time.monotonic()) // 2) % len(frames)]
 
 
-def _premium_header(playing=True):
-    frame = _animation_frame(playing)
-    return f"<b>◈ ʙᴏᴍᴍʏ ᴍᴜsɪᴄ  •  {frame}</b>"
+_BUTTON_STYLES = (
+    enums.ButtonStyle.DANGER,
+    enums.ButtonStyle.SUCCESS,
+    enums.ButtonStyle.PRIMARY,
+    enums.ButtonStyle.DEFAULT,
+)
 
 
-def _progress_row(played, dur, style):
+def _control_styles():
+    # Stable styles look more polished than random button colours on every refresh.
+    return _BUTTON_STYLES
+
+
+def _progress_row(played, dur):
     return types.InputRichBlockButtons(
         buttons=[
             types.RichMessageButton(
                 text=_progress_line(played, dur),
-                style=style,
+                style=enums.ButtonStyle.DEFAULT,
                 callback_data="GetTimer",
             )
         ]
@@ -158,17 +143,22 @@ def _queue_len(chat_id):
     return max(len(tracks) - 1, 0) if tracks else 0
 
 
-def _control_rows(_, chat_id, playing, styles):
-    replay_style, toggle_style, skip_style, queue_style = styles
+def _control_rows(_, chat_id, playing):
+    replay_style, toggle_style, skip_style, queue_style = _control_styles()
+    pause_text = _["RICH_BTN_PAUSE"]
+    resume_text = _["RICH_BTN_RESUME"]
+    replay_text = _["RICH_BTN_REPLAY"]
+    skip_text = _["RICH_BTN_SKIP"]
+    queue_text = _["RICH_BTN_QUEUE"].format(_queue_len(chat_id))
     toggle = (
         types.RichMessageButton(
-            text=_["RICH_BTN_PAUSE"],
+            text="⏸  " + pause_text,
             style=toggle_style,
             callback_data=f"ADMIN Pause|{chat_id}",
         )
         if playing
         else types.RichMessageButton(
-            text=_["RICH_BTN_RESUME"],
+            text="▶️  " + resume_text,
             style=toggle_style,
             callback_data=f"ADMIN Resume|{chat_id}",
         )
@@ -177,13 +167,13 @@ def _control_rows(_, chat_id, playing, styles):
         types.InputRichBlockButtons(
             buttons=[
                 types.RichMessageButton(
-                    text=_["RICH_BTN_REPLAY"],
+                    text="↻  " + replay_text,
                     style=replay_style,
                     callback_data=f"ADMIN Replay|{chat_id}",
                 ),
                 toggle,
                 types.RichMessageButton(
-                    text=_["RICH_BTN_SKIP"],
+                    text="»  " + skip_text,
                     style=skip_style,
                     callback_data=f"ADMIN Skip|{chat_id}",
                 ),
@@ -192,7 +182,7 @@ def _control_rows(_, chat_id, playing, styles):
         types.InputRichBlockButtons(
             buttons=[
                 types.RichMessageButton(
-                    text=_["RICH_BTN_QUEUE"].format(_queue_len(chat_id)),
+                    text="♡  " + queue_text,
                     style=queue_style,
                     callback_data=f"nowplaying_queue {chat_id}",
                 ),
@@ -204,13 +194,15 @@ def _control_rows(_, chat_id, playing, styles):
 def build_now_playing_blocks(
     _, photo, caption_html, chat_id, played=None, dur=None, playing=True
 ):
+    # Photo stays first so Telegram keeps the artwork as the visual hero.
     blocks = [types.InputRichBlockPhoto(photo=types.InputMediaPhoto(photo))]
-    blocks.append(types.InputRichBlockParagraph(text=_parse_inline(_premium_header(playing))))
+    blocks.append(
+        types.InputRichBlockParagraph(text=_parse_inline(_love_header(playing)))
+    )
     blocks += _html_caption_to_blocks(caption_html)
-    styles = _BUTTON_STYLES + [enums.ButtonStyle.DEFAULT]
     if played and dur:
-        blocks.append(_progress_row(played, dur, styles[4]))
-    blocks += _control_rows(_, chat_id, playing, styles[:4])
+        blocks.append(_progress_row(played, dur))
+    blocks += _control_rows(_, chat_id, playing)
     return blocks
 
 
@@ -327,78 +319,6 @@ def build_queue_blocks(_, caption_html, chat_id, qid):
                 ),
                 types.RichMessageButton(
                     text=_["RICH_BTN_END"],
-                    style=enums.ButtonStyle.DANGER,
-                    callback_data=f"ADMIN Stop|{chat_id}",
-                ),
-            ]
-        )
-    )
-    return blocks
-
-
-def build_queue_list_blocks(_, tracks, chat_id, cplay="g"):
-    """Build a compact, premium queue dashboard using Telegram Rich Messages."""
-    blocks = [
-        types.InputRichBlockParagraph(
-            text=_parse_inline("<b>◈ ʙᴏᴍᴍʏ ᴍᴜsɪᴄ  •  ǫᴜᴇᴜᴇ ᴅᴀsʜʙᴏᴀʀᴅ</b>")
-        ),
-        types.InputRichBlockParagraph(
-            text=_parse_inline(
-                f"<b>● ɴᴏᴡ ᴘʟᴀʏɪɴɢ</b>  ·  {tracks[0]['title'][:46]}\n"
-                f"⌁ {tracks[0]['dur']}  ·  ♫ {tracks[0]['by']}"
-            )
-        ),
-    ]
-    queued = tracks[1:]
-    if not queued:
-        blocks.append(types.InputRichBlockParagraph(text="<b>⌁ ǫᴜᴇᴜᴇ ɪs ᴇᴍᴘᴛʏ</b>"))
-    else:
-        blocks.append(types.InputRichBlockParagraph(text="<b>╭─ ᴜᴘᴄᴏᴍɪɴɢ ᴛʀᴀᴄᴋs ─╮</b>"))
-        for index, track in enumerate(queued[:12], start=1):
-            title = str(track.get("title", "Unknown"))[:48]
-            dur = track.get("dur", "--:--")
-            by = str(track.get("by", "Unknown"))[:28]
-            marker = "◉" if index == 1 else "•"
-            blocks.append(
-                types.InputRichBlockParagraph(
-                    text=_parse_inline(
-                        f"<b>{marker} {index:02d}  {title}</b>\n"
-                        f"   ◷ {dur}  ·  ♫ {by}"
-                    )
-                )
-            )
-        if len(queued) > 12:
-            blocks.append(
-                types.InputRichBlockParagraph(
-                    text=f"＋ {len(queued) - 12} more tracks hidden"
-                )
-            )
-    blocks.append(
-        types.InputRichBlockButtons(
-            buttons=[
-                types.RichMessageButton(
-                    text=f"☰ ǫᴜᴇᴜᴇ · {len(queued)}",
-                    style=enums.ButtonStyle.PRIMARY,
-                    callback_data=f"nowplaying_queue {chat_id}",
-                ),
-                types.RichMessageButton(
-                    text="↩ ᴘʟᴀʏᴇʀ",
-                    style=enums.ButtonStyle.DEFAULT,
-                    callback_data=f"queue_back_timer {cplay}",
-                ),
-            ]
-        )
-    )
-    blocks.append(
-        types.InputRichBlockButtons(
-            buttons=[
-                types.RichMessageButton(
-                    text=_['RICH_BTN_SKIP'],
-                    style=enums.ButtonStyle.SUCCESS,
-                    callback_data=f"ADMIN Skip|{chat_id}",
-                ),
-                types.RichMessageButton(
-                    text=_['RICH_BTN_END'],
                     style=enums.ButtonStyle.DANGER,
                     callback_data=f"ADMIN Stop|{chat_id}",
                 ),
